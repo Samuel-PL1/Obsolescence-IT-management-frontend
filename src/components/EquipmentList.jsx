@@ -23,9 +23,9 @@ import {
 
 export function EquipmentList() {
   const [equipment, setEquipment] = useState([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterType, setFilterType] = useState("all")
+  const [filterStatus, setFilterStatus] = useState("all")
   const [loading, setLoading] = useState(true)
   const [showImport, setShowImport] = useState(false)
 
@@ -36,79 +36,17 @@ export function EquipmentList() {
   const fetchEquipment = async () => {
     setLoading(true)
     try {
-      // Simulation de données pour la démonstration
-      // En production, cet appel serait fait vers l'API Flask
-      const mockData = [
-        {
-          id: 1,
-          name: 'PC-001',
-          equipment_type: 'PC',
-          location: 'Siège Paris - Bureau 101',
-          ip_address: '192.168.1.10',
-          os_name: 'Windows',
-          os_version: '10 Pro',
-          status: 'Active',
-          acquisition_date: '2021-03-15',
-          warranty_end_date: '2024-03-15',
-          applications: [
-            { name: 'Microsoft Office', version: '2019' },
-            { name: 'Chrome', version: '118.0' }
-          ]
-        },
-        {
-          id: 2,
-          name: 'SRV-001',
-          equipment_type: 'Serveur',
-          location: 'Datacenter Paris',
-          ip_address: '192.168.1.100',
-          os_name: 'Ubuntu',
-          os_version: '20.04 LTS',
-          status: 'Active',
-          acquisition_date: '2020-01-10',
-          warranty_end_date: '2025-01-10',
-          applications: [
-            { name: 'Apache', version: '2.4.41' },
-            { name: 'MySQL', version: '8.0' }
-          ]
-        },
-        {
-          id: 3,
-          name: 'PC-002',
-          equipment_type: 'PC',
-          location: 'Agence Lyon - Bureau 205',
-          ip_address: '192.168.2.15',
-          os_name: 'Windows',
-          os_version: '7 Pro',
-          status: 'Obsolete',
-          acquisition_date: '2018-06-20',
-          warranty_end_date: '2021-06-20',
-          applications: [
-            { name: 'Microsoft Office', version: '2016' },
-            { name: 'Internet Explorer', version: '11' }
-          ]
-        },
-        {
-          id: 4,
-          name: 'IMP-001',
-          equipment_type: 'Imprimante',
-          location: 'Siège Paris - Open Space',
-          ip_address: '192.168.1.50',
-          os_name: null,
-          os_version: null,
-          status: 'Active',
-          acquisition_date: '2022-09-12',
-          warranty_end_date: '2025-09-12',
-          applications: []
-        }
-      ]
-      
-      const sortedEquipment = [...mockData].sort((a, b) =>
-        a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' })
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/equipment`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      const sortedEquipment = [...data].sort((a, b) =>
+        a.name.localeCompare(b.name, "fr", { numeric: true, sensitivity: "base" })
       )
-
       setEquipment(sortedEquipment)
     } catch (error) {
-      console.error('Erreur lors du chargement des équipements:', error)
+      console.error("Erreur lors du chargement des équipements:", error)
     } finally {
       setLoading(false)
     }
@@ -275,29 +213,96 @@ export function EquipmentList() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
+                  {/* Informations de base */}
+                  {item.description_alias && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Description:</span>
+                      <span>{item.description_alias}</span>
+                    </div>
+                  )}
+                  {item.brand && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Marque:</span>
+                      <span>{item.brand}</span>
+                    </div>
+                  )}
+                  {item.model_number && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Modèle:</span>
+                      <span>{item.model_number}</span>
+                    </div>
+                  )}
+                  
+                  {/* Informations réseau */}
                   {item.ip_address && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">IP:</span>
                       <span className="font-mono">{item.ip_address}</span>
                     </div>
                   )}
+                  {item.network_connected !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Connecté au réseau:</span>
+                      <span className={item.network_connected ? 'text-green-600' : 'text-red-600'}>
+                        {item.network_connected ? 'Oui' : 'Non'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Système d'exploitation */}
                   {item.os_name && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">OS:</span>
                       <span>{item.os_name} {item.os_version}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Acquisition:</span>
-                    <span>{new Date(item.acquisition_date).toLocaleDateString('fr-FR')}</span>
-                  </div>
-                  {item.applications.length > 0 && (
+                  
+                  {/* Informations de sauvegarde */}
+                  {item.rls_network_saved !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Sauvegardé RLS:</span>
+                      <span className={item.rls_network_saved ? 'text-green-600' : 'text-red-600'}>
+                        {item.rls_network_saved ? 'Oui' : 'Non'}
+                      </span>
+                    </div>
+                  )}
+                  {item.to_be_backed_up !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">À sauvegarder:</span>
+                      <span className={item.to_be_backed_up ? 'text-orange-600' : 'text-gray-600'}>
+                        {item.to_be_backed_up ? 'Oui' : 'Non'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Fournisseur */}
+                  {item.supplier && item.supplier !== 'nan' && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Fournisseur:</span>
+                      <span>{item.supplier}</span>
+                    </div>
+                  )}
+                  
+                  {/* Dates */}
+                  {item.acquisition_date && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Acquisition:</span>
+                      <span>{new Date(item.acquisition_date).toLocaleDateString("fr-FR")}</span>
+                    </div>
+                  )}
+                  {item.warranty_end_date && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Fin de garantie:</span>
+                      <span>{new Date(item.warranty_end_date).toLocaleDateString("fr-FR")}</span>
+                    </div>
+                  )}
+                  {item.applications && item.applications.length > 0 && (
                     <div>
                       <span className="text-gray-500">Applications:</span>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {item.applications.slice(0, 2).map((app, index) => (
                           <Badge key={index} variant="outline" className="text-xs">
-                            {app.name}
+                            {app.name} {app.version}
                           </Badge>
                         ))}
                         {item.applications.length > 2 && (

@@ -129,7 +129,7 @@ export function ImportExcel({ onClose, onImportSuccess }) {
             <CardContent>
               <div className="space-y-2 text-sm">
                 <p>• <strong>Colonnes obligatoires :</strong> Salle, Nom PC</p>
-                <p>• <strong>Colonnes optionnelles :</strong> Description, Système d'exploitation, Application, Version, Fournisseur</p>
+                <p>• <strong>Colonnes optionnelles :</strong> Description (Alias), Marque, N° modèle, Système d'exploitation PC, Application, Version, Connecté au réseau O/N, Sauvegardé sur réseau RLS O/N, Adresse IP, A sauvegarder O/N, Fournisseur matériel</p>
                 <p>• <strong>Formats supportés :</strong> .xlsx, .xls</p>
                 <p>• <strong>Type d'équipement :</strong> Déterminé automatiquement selon le nom</p>
                 <p>• <strong>Noms uniques :</strong> Chaque équipement doit avoir un nom unique</p>

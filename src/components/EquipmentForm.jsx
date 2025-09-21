@@ -21,15 +21,22 @@ export function EquipmentForm() {
   const isEdit = Boolean(id)
 
   const [formData, setFormData] = useState({
-    name: '',
-    equipment_type: 'PC',
-    location: '',
-    ip_address: '',
-    os_name: '',
-    os_version: '',
-    acquisition_date: '',
-    warranty_end_date: '',
-    status: 'Active',
+    name: "",
+    equipment_type: "PC",
+    location: "",
+    ip_address: "",
+    os_name: "",
+    os_version: "",
+    acquisition_date: "",
+    warranty_end_date: "",
+    status: "Active",
+    description_alias: "",
+    brand: "",
+    model_number: "",
+    network_connected: false,
+    rls_network_saved: false,
+    to_be_backed_up: false,
+    supplier: "",
     applications: []
   })
 
@@ -45,43 +52,33 @@ export function EquipmentForm() {
 
   const fetchEquipment = async () => {
     try {
-      // Simulation de données pour la démonstration
-      // En production, cet appel serait fait vers l'API Flask
-      const mockData = {
-        id: 1,
-        name: 'PC-001',
-        equipment_type: 'PC',
-        location: 'Siège Paris - Bureau 101',
-        ip_address: '192.168.1.10',
-        os_name: 'Windows',
-        os_version: '10 Pro',
-        acquisition_date: '2021-03-15',
-        warranty_end_date: '2024-03-15',
-        status: 'Active',
-        applications: [
-          { name: 'Microsoft Office', version: '2019' },
-          { name: 'Chrome', version: '118.0' }
-        ]
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/equipment/${id}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-      
-      setFormData(mockData)
+      const data = await response.json()
+      setFormData({
+        ...data,
+        acquisition_date: data.acquisition_date ? data.acquisition_date.split('T')[0] : '',
+        warranty_end_date: data.warranty_end_date ? data.warranty_end_date.split('T')[0] : '',
+      })
     } catch (error) {
       console.error('Erreur lors du chargement de l\'équipement:', error)
     }
   }
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
+    const { name, value, type, checked } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === "checkbox" ? checked : value
     }))
     
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
-        [name]: ''
+        [name]: ""
       }))
     }
   }
@@ -213,8 +210,42 @@ export function EquipmentForm() {
                   <option value="Imprimante">Imprimante</option>
                   <option value="Switch">Switch</option>
                   <option value="Routeur">Routeur</option>
+                  <option value="Machine laboratoire">Machine laboratoire</option>
                   <option value="Autre">Autre</option>
                 </select>
+              </div>
+
+              <div>
+                <Label htmlFor="description_alias">Description (Alias)</Label>
+                <Input
+                  id="description_alias"
+                  name="description_alias"
+                  value={formData.description_alias}
+                  onChange={handleInputChange}
+                  placeholder="Poste de travail principal..."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="brand">Marque</Label>
+                <Input
+                  id="brand"
+                  name="brand"
+                  value={formData.brand}
+                  onChange={handleInputChange}
+                  placeholder="Dell, HP, Agilent..."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="model_number">N° modèle</Label>
+                <Input
+                  id="model_number"
+                  name="model_number"
+                  value={formData.model_number}
+                  onChange={handleInputChange}
+                  placeholder="OptiPlex 7090, ProLiant DL380..."
+                />
               </div>
 
               <div>
@@ -254,6 +285,17 @@ export function EquipmentForm() {
               </div>
 
               <div>
+                <Label htmlFor="supplier">Fournisseur matériel</Label>
+                <Input
+                  id="supplier"
+                  name="supplier"
+                  value={formData.supplier}
+                  onChange={handleInputChange}
+                  placeholder="Dell Technologies, HP Inc...."
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="status">Statut</Label>
                 <select
                   id="status"
@@ -267,6 +309,42 @@ export function EquipmentForm() {
                   <option value="In Stock">En stock</option>
                   <option value="Maintenance">En maintenance</option>
                 </select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="network_connected"
+                  name="network_connected"
+                  checked={formData.network_connected}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <Label htmlFor="network_connected">Connecté au réseau</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="rls_network_saved"
+                  name="rls_network_saved"
+                  checked={formData.rls_network_saved}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <Label htmlFor="rls_network_saved">Sauvegardé sur réseau RLS</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="to_be_backed_up"
+                  name="to_be_backed_up"
+                  checked={formData.to_be_backed_up}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <Label htmlFor="to_be_backed_up">À sauvegarder</Label>
               </div>
             </div>
           </CardContent>
@@ -283,24 +361,24 @@ export function EquipmentForm() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="os_name">Nom du système</Label>
+                <Label htmlFor="os_name">Système d'exploitation</Label>
                 <Input
                   id="os_name"
                   name="os_name"
                   value={formData.os_name}
                   onChange={handleInputChange}
-                  placeholder="Windows, Ubuntu, macOS..."
+                  placeholder="Windows 11 Entreprise, Ubuntu 20.04..."
                 />
               </div>
 
               <div>
-                <Label htmlFor="os_version">Version</Label>
+                <Label htmlFor="os_version">Version OS</Label>
                 <Input
                   id="os_version"
                   name="os_version"
                   value={formData.os_version}
                   onChange={handleInputChange}
-                  placeholder="10 Pro, 20.04 LTS, 13.0..."
+                  placeholder="23H2, SP1..."
                 />
               </div>
             </div>

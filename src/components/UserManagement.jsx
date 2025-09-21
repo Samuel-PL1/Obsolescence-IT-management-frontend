@@ -172,6 +172,47 @@ export function UserManagement() {
     }
   }
 
+  const handleResetData = async () => {
+    const confirmMessage = `⚠️ ATTENTION ⚠️
+
+Cette action va DÉFINITIVEMENT supprimer :
+• Tous les équipements
+• Toutes les applications associées
+• Toutes les alertes d'obsolescence
+• Toutes les données d'historique
+
+Cette action est IRRÉVERSIBLE !
+
+Tapez "RESET" pour confirmer :`;
+
+    const userInput = prompt(confirmMessage);
+    
+    if (userInput === "RESET") {
+      try {
+        const response = await fetch('/api/reset-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          alert('✅ Toutes les données ont été supprimées avec succès !');
+          // Recharger la page pour refléter les changements
+          window.location.reload();
+        } else {
+          const errorData = await response.json();
+          alert(`❌ Erreur lors de la suppression : ${errorData.error}`);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la remise à zéro:', error);
+        alert('❌ Erreur de connexion. Veuillez réessayer.');
+      }
+    } else if (userInput !== null) {
+      alert('❌ Confirmation incorrecte. Aucune donnée n\'a été supprimée.');
+    }
+  }
+
   const formatDate = (dateString) => {
     if (!dateString) return 'Jamais'
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -276,6 +317,29 @@ export function UserManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reset Data Section */}
+      <Card className="border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="text-red-800 flex items-center">
+            <Trash2 className="w-5 h-5 mr-2" />
+            Zone de Danger - Remise à Zéro
+          </CardTitle>
+          <CardDescription className="text-red-700">
+            Cette action supprimera définitivement tous les équipements et alertes de la base de données.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            variant="destructive" 
+            onClick={handleResetData}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Supprimer tous les équipements et alertes
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Add User Form */}
       {showAddUser && (

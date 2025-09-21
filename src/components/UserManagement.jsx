@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,10 +15,10 @@ import {
   Calendar,
   Settings
 } from 'lucide-react'
+import { normalizeText } from '@/lib/utils'
 
 export function UserManagement() {
   const [users, setUsers] = useState([])
-  const [filteredUsers, setFilteredUsers] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -33,10 +33,6 @@ export function UserManagement() {
   useEffect(() => {
     fetchUsers()
   }, [])
-
-  useEffect(() => {
-    filterUsers()
-  }, [users, searchTerm, filterRole])
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -91,7 +87,11 @@ export function UserManagement() {
         }
       ]
       
-      setUsers(mockData)
+      const sortedUsers = [...mockData].sort((a, b) =>
+        a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' })
+      )
+
+      setUsers(sortedUsers)
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error)
     } finally {
@@ -99,24 +99,24 @@ export function UserManagement() {
     }
   }
 
-  const filterUsers = () => {
-    let filtered = users
+  const filteredUsers = useMemo(() => {
+    const normalizedSearch = normalizeText(searchTerm)
 
-    // Filtre par terme de recherche
-    if (searchTerm) {
-      filtered = filtered.filter(user =>
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
+    return users.filter(user => {
+      const matchesSearch = !normalizedSearch || [user.username, user.email]
+        .some(field => normalizeText(field).includes(normalizedSearch))
 
-    // Filtre par rôle
-    if (filterRole !== 'all') {
-      filtered = filtered.filter(user => user.role === filterRole)
-    }
+      if (!matchesSearch) {
+        return false
+      }
 
-    setFilteredUsers(filtered)
-  }
+      if (filterRole === 'all') {
+        return true
+      }
+
+      return user.role === filterRole
+    })
+  }, [users, searchTerm, filterRole])
 
   const getRoleBadge = (role) => {
     switch (role) {

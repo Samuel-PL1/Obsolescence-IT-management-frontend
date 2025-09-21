@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Monitor, 
-  AlertTriangle, 
-  CheckCircle, 
+import {
+  Monitor,
+  AlertTriangle,
+  CheckCircle,
   XCircle,
   TrendingUp,
   RefreshCw,
@@ -14,6 +14,149 @@ import {
   Filter
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+
+const toFiniteNumber = (value) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const clamp = (value, min, max = Number.POSITIVE_INFINITY) => {
+  return Math.min(Math.max(value, min), max)
+}
+
+const buildObsolescenceSegments = ({ total, obsolete, upToDate, soonObsolete }) => {
+  const safeTotal = clamp(toFiniteNumber(total) ?? 0, 0)
+
+  if (safeTotal === 0) {
+    return []
+  }
+
+  const safeObsolete = clamp(toFiniteNumber(obsolete) ?? 0, 0, safeTotal)
+
+  let computedSoon = toFiniteNumber(soonObsolete)
+  if (computedSoon != null) {
+    computedSoon = clamp(computedSoon, 0, safeTotal - safeObsolete)
+  }
+
+  let computedUpToDate = toFiniteNumber(upToDate)
+  if (computedUpToDate != null) {
+    computedUpToDate = clamp(computedUpToDate, 0, safeTotal - safeObsolete)
+  }
+
+  if (computedSoon == null && computedUpToDate == null) {
+    computedUpToDate = clamp(Math.round(safeTotal * 0.6), 0, safeTotal - safeObsolete)
+  }
+
+  if (computedSoon == null) {
+    computedSoon = Math.max(safeTotal - safeObsolete - (computedUpToDate ?? 0), 0)
+  }
+
+  if (computedUpToDate == null) {
+    computedUpToDate = Math.max(safeTotal - safeObsolete - computedSoon, 0)
+  }
+
+  const accounted = safeObsolete + computedSoon + computedUpToDate
+  if (accounted !== safeTotal) {
+    const difference = safeTotal - accounted
+    computedUpToDate = clamp(computedUpToDate + difference, 0, safeTotal - safeObsolete)
+  }
+
+  return [
+    { name: 'À jour', value: Math.round(computedUpToDate), color: '#10b981' },
+    { name: 'Bientôt obsolète', value: Math.round(computedSoon), color: '#f59e0b' },
+    { name: 'Obsolète', value: Math.round(safeObsolete), color: '#ef4444' }
+  ].filter(item => item.value > 0)
+}
+
+const FALLBACK_LOCATIONS = ['Siège Paris', 'Agence Lyon', 'Bureau Marseille', 'Site Lille']
+
+const FALLBACK_DASHBOARD = {
+  stats: {
+    totalEquipment: 156,
+    obsoleteEquipment: 23,
+    activeEquipment: 133,
+    criticalAlerts: 8
+  },
+  byType: [
+    { type: 'PC', count: 89 },
+    { type: 'Serveur', count: 34 },
+    { type: 'Imprimante', count: 23 },
+    { type: 'Switch', count: 10 }
+  ],
+  byLocation: [
+    { location: 'Siège Paris', count: 67 },
+    { location: 'Agence Lyon', count: 45 },
+    { location: 'Bureau Marseille', count: 32 },
+    { location: 'Site Lille', count: 12 }
+  ],
+  obsolescence: buildObsolescenceSegments({
+    total: 156,
+    obsolete: 23,
+    upToDate: 85,
+    soonObsolete: 48
+  })
+}
+
+const sanitizeLabel = (value) => {
+  if (value == null) {
+    return undefined
+  }
+
+  const label = value.toString().trim()
+  return label.length ? label : undefined
+}
+
+const sanitizeTypeDistribution = (distribution) => {
+  if (!Array.isArray(distribution)) {
+    return []
+  }
+
+  return distribution.reduce((acc, item) => {
+    const label = sanitizeLabel(item?.type)
+    if (!label) {
+      return acc
+    }
+
+    const count = Math.max(toFiniteNumber(item.count) ?? 0, 0)
+    acc.push({ type: label, count })
+    return acc
+  }, [])
+}
+
+const sanitizeLocationDistribution = (distribution) => {
+  if (!Array.isArray(distribution)) {
+    return []
+  }
+
+  return distribution.reduce((acc, item) => {
+    const label = sanitizeLabel(item?.location)
+    if (!label) {
+      return acc
+    }
+
+    const count = Math.max(toFiniteNumber(item.count) ?? 0, 0)
+    acc.push({ location: label, count })
+    return acc
+  }, [])
+}
+
+const sanitizeLocations = (locations) => {
+  if (!Array.isArray(locations)) {
+    return [...FALLBACK_LOCATIONS]
+  }
+
+  const cleaned = locations
+    .map((location) => sanitizeLabel(location))
+    .filter(Boolean)
+
+  if (cleaned.length === 0) {
+    return [...FALLBACK_LOCATIONS]
+  }
+
+  return [...new Set(cleaned)]
+}
+
+const cloneDistribution = (distribution) => distribution.map(item => ({ ...item }))
 
 export function Dashboard() {
   const [stats, setStats] = useState({
@@ -30,122 +173,143 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    fetchLocations()
-    fetchDashboardData()
+  const applyFallbackDashboard = useCallback(() => {
+    setStats({ ...FALLBACK_DASHBOARD.stats })
+    setEquipmentByType(cloneDistribution(FALLBACK_DASHBOARD.byType))
+    setEquipmentByLocation(cloneDistribution(FALLBACK_DASHBOARD.byLocation))
+    setObsolescenceData(cloneDistribution(FALLBACK_DASHBOARD.obsolescence))
   }, [])
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [selectedLocation])
+  const applyDashboardFromApi = useCallback((data) => {
+    const totalEquipment = clamp(
+      toFiniteNumber(data.total_equipment) ?? FALLBACK_DASHBOARD.stats.totalEquipment,
+      0
+    )
+    const obsoleteEquipment = clamp(
+      toFiniteNumber(data.obsolete_equipment) ?? FALLBACK_DASHBOARD.stats.obsoleteEquipment,
+      0,
+      totalEquipment
+    )
+    const activeFromApi = toFiniteNumber(data.active_equipment)
+    const activeEquipment = activeFromApi != null
+      ? clamp(activeFromApi, 0, totalEquipment)
+      : Math.max(totalEquipment - obsoleteEquipment, 0)
+    const criticalFromApi = toFiniteNumber(data.critical_alerts)
+    const criticalAlerts = criticalFromApi != null
+      ? Math.max(Math.round(criticalFromApi), 0)
+      : Math.max(Math.round(obsoleteEquipment * 0.35), 0)
 
-  const fetchLocations = async () => {
+    setStats({
+      totalEquipment,
+      obsoleteEquipment,
+      activeEquipment,
+      criticalAlerts
+    })
+
+    const sanitizedTypes = sanitizeTypeDistribution(data.by_type)
+    setEquipmentByType(
+      sanitizedTypes.length ? sanitizedTypes : cloneDistribution(FALLBACK_DASHBOARD.byType)
+    )
+
+    const sanitizedLocations = sanitizeLocationDistribution(data.by_location)
+    setEquipmentByLocation(
+      sanitizedLocations.length ? sanitizedLocations : cloneDistribution(FALLBACK_DASHBOARD.byLocation)
+    )
+
+    const obsolescenceSegments = buildObsolescenceSegments({
+      total: totalEquipment,
+      obsolete: obsoleteEquipment,
+      upToDate: toFiniteNumber(data.up_to_date),
+      soonObsolete: toFiniteNumber(data.soon_obsolete)
+    })
+
+    setObsolescenceData(
+      obsolescenceSegments.length
+        ? obsolescenceSegments
+        : cloneDistribution(FALLBACK_DASHBOARD.obsolescence)
+    )
+  }, [])
+
+  const fetchLocations = useCallback(async () => {
     try {
       const response = await fetch('/api/equipment/locations')
-      if (response.ok) {
-        const data = await response.json()
-        setLocations(data.locations || [])
+      if (!response.ok) {
+        setLocations([...FALLBACK_LOCATIONS])
+        return
       }
+
+      const data = await response.json()
+      setLocations(sanitizeLocations(data.locations))
     } catch (error) {
       console.error('Erreur lors du chargement des localisations:', error)
+      setLocations([...FALLBACK_LOCATIONS])
     }
-  }
+  }, [])
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true)
     try {
-      // Récupérer les statistiques avec filtre de localisation
-      const url = selectedLocation === 'all' 
-        ? '/api/equipment/stats' 
+      const url = selectedLocation === 'all'
+        ? '/api/equipment/stats'
         : `/api/equipment/stats?location=${encodeURIComponent(selectedLocation)}`
-      
+
       const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        
-        // Mettre à jour les statistiques
-        setStats({
-          totalEquipment: data.total_equipment || 0,
-          obsoleteEquipment: data.obsolete_equipment || 0,
-          activeEquipment: data.active_equipment || 0,
-          criticalAlerts: Math.floor((data.obsolete_equipment || 0) * 0.4)
-        })
-
-        // Équipements par type (avec filtre)
-        setEquipmentByType(data.by_type || [])
-
-        // Équipements par localisation (toujours toutes les localisations)
-        setEquipmentByLocation(data.by_location || [])
-
-        // Données d'obsolescence basées sur les statistiques
-        const total = data.total_equipment || 0
-        const obsolete = data.obsolete_equipment || 0
-        const upToDate = Math.floor(total * 0.6)
-        const soonObsolete = total - obsolete - upToDate
-
-        setObsolescenceData([
-          { name: 'À jour', value: upToDate, color: '#10b981' },
-          { name: 'Bientôt obsolète', value: soonObsolete, color: '#f59e0b' },
-          { name: 'Obsolète', value: obsolete, color: '#ef4444' }
-        ].filter(item => item.value > 0))
-
-      } else {
-        // Fallback avec données de démonstration
-        setStats({
-          totalEquipment: 156,
-          obsoleteEquipment: 23,
-          activeEquipment: 133,
-          criticalAlerts: 8
-        })
-
-        setEquipmentByType([
-          { type: 'PC', count: 89 },
-          { type: 'Serveur', count: 34 },
-          { type: 'Imprimante', count: 23 },
-          { type: 'Switch', count: 10 }
-        ])
-
-        setEquipmentByLocation([
-          { location: 'Siège Paris', count: 67 },
-          { location: 'Agence Lyon', count: 45 },
-          { location: 'Bureau Marseille', count: 32 },
-          { location: 'Site Lille', count: 12 }
-        ])
-
-        setObsolescenceData([
-          { name: 'À jour', value: 85, color: '#10b981' },
-          { name: 'Bientôt obsolète', value: 48, color: '#f59e0b' },
-          { name: 'Obsolète', value: 23, color: '#ef4444' }
-        ])
+      if (!response.ok) {
+        applyFallbackDashboard()
+        return
       }
 
+      const data = await response.json()
+      if (!data || typeof data !== 'object') {
+        applyFallbackDashboard()
+        return
+      }
+
+      applyDashboardFromApi(data)
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error)
+      applyFallbackDashboard()
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedLocation, applyFallbackDashboard, applyDashboardFromApi])
 
-  const refreshData = async () => {
+  useEffect(() => {
+    fetchLocations()
+    fetchDashboardData()
+  }, [fetchLocations, fetchDashboardData])
+
+  const refreshData = useCallback(async () => {
     setRefreshing(true)
-    await fetchDashboardData()
-    setRefreshing(false)
-  }
+    try {
+      await fetchDashboardData()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [fetchDashboardData])
 
-  const StatCard = ({ title, value, icon: Icon, color, description }) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${color}`} />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-      </CardContent>
-    </Card>
-  )
+  useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
+
+  const StatCard = ({ title, value, icon, color, description }) => {
+    const Icon = icon
+
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Icon className={`h-4 w-4 ${color}`} />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{value}</div>
+          {description && (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (loading && !stats.totalEquipment) {
     return (

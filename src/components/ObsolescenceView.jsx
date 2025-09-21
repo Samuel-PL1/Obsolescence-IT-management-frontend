@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { 
+import {
   AlertTriangle, 
   RefreshCw, 
   Search, 
@@ -14,10 +14,10 @@ import {
   ExternalLink,
   Download
 } from 'lucide-react'
+import { normalizeText } from '@/lib/utils'
 
 export function ObsolescenceView() {
   const [obsolescenceData, setObsolescenceData] = useState([])
-  const [filteredData, setFilteredData] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -26,10 +26,6 @@ export function ObsolescenceView() {
   useEffect(() => {
     fetchObsolescenceData()
   }, [])
-
-  useEffect(() => {
-    filterData()
-  }, [obsolescenceData, searchTerm, filterStatus])
 
   const fetchObsolescenceData = async () => {
     setLoading(true)
@@ -99,7 +95,11 @@ export function ObsolescenceView() {
         }
       ]
       
-      setObsolescenceData(mockData)
+      const sortedData = [...mockData].sort((a, b) =>
+        a.product_name.localeCompare(b.product_name, 'fr', { sensitivity: 'base' })
+      )
+
+      setObsolescenceData(sortedData)
     } catch (error) {
       console.error('Erreur lors du chargement des données d\'obsolescence:', error)
     } finally {
@@ -107,31 +107,39 @@ export function ObsolescenceView() {
     }
   }
 
-  const filterData = () => {
-    let filtered = obsolescenceData
+  const filteredData = useMemo(() => {
+    const normalizedSearch = normalizeText(searchTerm)
 
-    // Filtre par terme de recherche
-    if (searchTerm) {
-      filtered = filtered.filter(item =>
-        item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.version.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.affected_equipment.some(eq => eq.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-    }
+    return obsolescenceData.filter(item => {
+      const affectedEquipment = Array.isArray(item.affected_equipment)
+        ? item.affected_equipment
+        : []
 
-    // Filtre par statut
-    if (filterStatus !== 'all') {
-      if (filterStatus === 'obsolete') {
-        filtered = filtered.filter(item => item.is_obsolete)
-      } else if (filterStatus === 'active') {
-        filtered = filtered.filter(item => !item.is_obsolete)
-      } else if (filterStatus === 'critical') {
-        filtered = filtered.filter(item => item.severity === 'critical')
+      const matchesSearch = !normalizedSearch || [
+        item.product_name,
+        item.version,
+        ...affectedEquipment
+      ].some(field => normalizeText(field).includes(normalizedSearch))
+
+      if (!matchesSearch) {
+        return false
       }
-    }
 
-    setFilteredData(filtered)
-  }
+      if (filterStatus === 'obsolete') {
+        return item.is_obsolete
+      }
+
+      if (filterStatus === 'active') {
+        return !item.is_obsolete
+      }
+
+      if (filterStatus === 'critical') {
+        return item.severity === 'critical'
+      }
+
+      return true
+    })
+  }, [obsolescenceData, searchTerm, filterStatus])
 
   const updateAllObsolescence = async () => {
     setUpdating(true)
@@ -196,14 +204,20 @@ export function ObsolescenceView() {
     // Simulation d'export de rapport
     const csvContent = [
       ['Produit', 'Type', 'Version', 'Date EOL', 'Statut', 'Équipements affectés'],
-      ...filteredData.map(item => [
-        item.product_name,
-        item.product_type === 'os' ? 'Système' : 'Application',
-        item.version,
-        item.eol_date,
-        item.is_obsolete ? 'Obsolète' : 'Actif',
-        item.affected_equipment.join(', ')
-      ])
+      ...filteredData.map(item => {
+        const affectedEquipment = Array.isArray(item.affected_equipment)
+          ? item.affected_equipment.join(', ')
+          : ''
+
+        return [
+          item.product_name,
+          item.product_type === 'os' ? 'Système' : 'Application',
+          item.version,
+          item.eol_date,
+          item.is_obsolete ? 'Obsolète' : 'Actif',
+          affectedEquipment
+        ]
+      })
     ].map(row => row.join(',')).join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
@@ -356,76 +370,82 @@ export function ObsolescenceView() {
 
       {/* Obsolescence List */}
       <div className="space-y-4">
-        {filteredData.map((item) => (
-          <Card key={item.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="flex flex-col">
-                    <CardTitle className="text-lg">
-                      {item.product_name} {item.version}
-                    </CardTitle>
-                    <CardDescription>
-                      {item.product_type === 'os' ? 'Système d\'exploitation' : 'Application'}
-                    </CardDescription>
+        {filteredData.map((item) => {
+          const affectedEquipment = Array.isArray(item.affected_equipment)
+            ? item.affected_equipment
+            : []
+
+          return (
+            <Card key={item.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex flex-col">
+                      <CardTitle className="text-lg">
+                        {item.product_name} {item.version}
+                      </CardTitle>
+                      <CardDescription>
+                        {item.product_type === 'os' ? 'Système d\'exploitation' : 'Application'}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {getSeverityBadge(item.severity, item.is_obsolete)}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Date de fin de vie</p>
+                    <p className="text-sm">
+                      {new Date(item.eol_date).toLocaleDateString('fr-FR')}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {getTimeUntilEOL(item.eol_date)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Fin de support</p>
+                    <p className="text-sm">
+                      {item.support_end_date ?
+                        new Date(item.support_end_date).toLocaleDateString('fr-FR') :
+                        'Non spécifié'
+                      }
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">
+                      Équipements affectés ({affectedEquipment.length})
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {affectedEquipment.slice(0, 3).map((eq, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {eq}
+                        </Badge>
+                      ))}
+                      {affectedEquipment.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{affectedEquipment.length - 3}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-                {getSeverityBadge(item.severity, item.is_obsolete)}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Date de fin de vie</p>
-                  <p className="text-sm">
-                    {new Date(item.eol_date).toLocaleDateString('fr-FR')}
-                  </p>
+
+                <div className="mt-4 pt-4 border-t flex items-center justify-between">
                   <p className="text-xs text-gray-500">
-                    {getTimeUntilEOL(item.eol_date)}
+                    Dernière mise à jour: {new Date(item.last_updated).toLocaleDateString('fr-FR')}
                   </p>
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Voir détails
+                  </Button>
                 </div>
-                
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Fin de support</p>
-                  <p className="text-sm">
-                    {item.support_end_date ? 
-                      new Date(item.support_end_date).toLocaleDateString('fr-FR') : 
-                      'Non spécifié'
-                    }
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">
-                    Équipements affectés ({item.affected_equipment.length})
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {item.affected_equipment.slice(0, 3).map((eq, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {eq}
-                      </Badge>
-                    ))}
-                    {item.affected_equipment.length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{item.affected_equipment.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                <p className="text-xs text-gray-500">
-                  Dernière mise à jour: {new Date(item.last_updated).toLocaleDateString('fr-FR')}
-                </p>
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Voir détails
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {filteredData.length === 0 && !loading && (

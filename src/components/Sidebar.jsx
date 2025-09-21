@@ -21,7 +21,13 @@ export function Sidebar({ open, setOpen, currentUser }) {
     { name: 'Utilisateurs', href: '/users', icon: Users },
   ]
 
-  const isActive = (href) => location.pathname === href
+  const isActive = (href) => {
+    if (location.pathname === href) {
+      return true
+    }
+
+    return location.pathname.startsWith(`${href}/`)
+  }
 
   return (
     <>
@@ -74,6 +80,7 @@ export function Sidebar({ open, setOpen, currentUser }) {
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-700 hover:bg-gray-100'
                   } ${open ? '' : 'justify-center'}`}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
                   title={!open ? item.name : ''}
                 >
                   <Icon className="w-5 h-5" />

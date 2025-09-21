@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ImportExcel } from './ImportExcel'
+import { normalizeText } from '@/lib/utils'
 import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
+  Plus,
+  Search,
+  Edit,
+  Trash2,
   Monitor,
   Server,
   Printer,
@@ -23,7 +23,6 @@ import {
 
 export function EquipmentList() {
   const [equipment, setEquipment] = useState([])
-  const [filteredEquipment, setFilteredEquipment] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -33,10 +32,6 @@ export function EquipmentList() {
   useEffect(() => {
     fetchEquipment()
   }, [])
-
-  useEffect(() => {
-    filterEquipment()
-  }, [equipment, searchTerm, filterType, filterStatus])
 
   const fetchEquipment = async () => {
     setLoading(true)
@@ -107,7 +102,11 @@ export function EquipmentList() {
         }
       ]
       
-      setEquipment(mockData)
+      const sortedEquipment = [...mockData].sort((a, b) =>
+        a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' })
+      )
+
+      setEquipment(sortedEquipment)
     } catch (error) {
       console.error('Erreur lors du chargement des équipements:', error)
     } finally {
@@ -115,31 +114,24 @@ export function EquipmentList() {
     }
   }
 
-  const filterEquipment = () => {
-    let filtered = equipment
+  const filteredEquipment = useMemo(() => {
+    const normalizedSearch = normalizeText(searchTerm)
 
-    // Filtre par terme de recherche
-    if (searchTerm) {
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.ip_address?.includes(searchTerm) ||
-        item.os_name?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
+    return equipment.filter(item => {
+      const matchesSearch = !normalizedSearch || [
+        item.name,
+        item.location,
+        item.ip_address,
+        item.os_name,
+        item.os_version
+      ].some(field => normalizeText(field).includes(normalizedSearch))
 
-    // Filtre par type
-    if (filterType !== 'all') {
-      filtered = filtered.filter(item => item.equipment_type === filterType)
-    }
+      const matchesType = filterType === 'all' || item.equipment_type === filterType
+      const matchesStatus = filterStatus === 'all' || item.status === filterStatus
 
-    // Filtre par statut
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(item => item.status === filterStatus)
-    }
-
-    setFilteredEquipment(filtered)
-  }
+      return matchesSearch && matchesType && matchesStatus
+    })
+  }, [equipment, searchTerm, filterType, filterStatus])
 
   const getTypeIcon = (type) => {
     switch (type) {

@@ -108,10 +108,12 @@ export function Sidebar({ open, setOpen, currentUser }) {
             
             {open && (
               <div className="mt-3 space-y-1">
-                <Button variant="ghost" size="sm" className="w-full justify-start">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Paramètres
-                </Button>
+                <Link to="/settings">
+                  <Button variant="ghost" size="sm" className="w-full justify-start">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Paramètres
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="sm" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
                   <LogOut className="w-4 h-4 mr-2" />
                   Déconnexion

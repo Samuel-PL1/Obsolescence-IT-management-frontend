@@ -72,29 +72,14 @@ const FALLBACK_LOCATIONS = ['Siège Paris', 'Agence Lyon', 'Bureau Marseille', '
 
 const FALLBACK_DASHBOARD = {
   stats: {
-    totalEquipment: 156,
-    obsoleteEquipment: 23,
-    activeEquipment: 133,
-    criticalAlerts: 8
+    totalEquipment: 0,
+    obsoleteEquipment: 0,
+    activeEquipment: 0,
+    criticalAlerts: 0
   },
-  byType: [
-    { type: 'PC', count: 89 },
-    { type: 'Serveur', count: 34 },
-    { type: 'Imprimante', count: 23 },
-    { type: 'Switch', count: 10 }
-  ],
-  byLocation: [
-    { location: 'Siège Paris', count: 67 },
-    { location: 'Agence Lyon', count: 45 },
-    { location: 'Bureau Marseille', count: 32 },
-    { location: 'Site Lille', count: 12 }
-  ],
-  obsolescence: buildObsolescenceSegments({
-    total: 156,
-    obsolete: 23,
-    upToDate: 85,
-    soonObsolete: 48
-  })
+  byType: [],
+  byLocation: [],
+  obsolescence: []
 }
 
 const sanitizeLabel = (value) => {
@@ -172,6 +157,7 @@ export function Dashboard() {
   const [selectedLocation, setSelectedLocation] = useState('all')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [recentAlerts, setRecentAlerts] = useState([])
 
   const applyFallbackDashboard = useCallback(() => {
     setStats({ ...FALLBACK_DASHBOARD.stats })
@@ -282,11 +268,27 @@ export function Dashboard() {
   const refreshData = useCallback(async () => {
     setRefreshing(true)
     try {
-      await fetchDashboardData()
+      await Promise.all([fetchDashboardData(), fetchRecentAlerts()])
     } finally {
       setRefreshing(false)
     }
   }, [fetchDashboardData])
+
+  const fetchRecentAlerts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/obsolescence/alerts?limit=5");
+      if (response.ok) {
+        const data = await response.json();
+        setRecentAlerts(data);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des alertes récentes:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecentAlerts();
+  }, [fetchRecentAlerts]);
 
   useEffect(() => {
     fetchDashboardData()
@@ -530,48 +532,32 @@ export function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {[
-              {
-                id: 1,
-                type: 'critical',
-                message: 'Windows 7 détecté sur 5 postes - Support terminé',
-                time: 'Il y a 2 heures',
-                equipment: 'PC-001, PC-015, PC-032...'
-              },
-              {
-                id: 2,
-                type: 'warning',
-                message: 'Java 8 approche de sa fin de support',
-                time: 'Il y a 4 heures',
-                equipment: 'SRV-001, SRV-003'
-              },
-              {
-                id: 3,
-                type: 'info',
-                message: 'Mise à jour disponible pour Ubuntu 20.04',
-                time: 'Il y a 1 jour',
-                equipment: 'SRV-005, SRV-007'
-              }
-            ].map((alert) => (
-              <div key={alert.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                <div className={`w-2 h-2 rounded-full mt-2 ${
-                  alert.type === 'critical' ? 'bg-red-500' :
-                  alert.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
-                }`} />
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{alert.message}</p>
-                  <p className="text-sm text-gray-500">{alert.equipment}</p>
-                  <p className="text-xs text-gray-400">{alert.time}</p>
-                </div>
-                <Badge variant={
-                  alert.type === 'critical' ? 'destructive' :
-                  alert.type === 'warning' ? 'secondary' : 'default'
-                }>
-                  {alert.type === 'critical' ? 'Critique' :
-                   alert.type === 'warning' ? 'Attention' : 'Info'}
-                </Badge>
+            {recentAlerts.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <p>Aucune alerte récente</p>
               </div>
-            ))}
+            ) : (
+              recentAlerts.map((alert) => (
+                <div key={alert.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                  <div className={`w-2 h-2 rounded-full mt-2 ${
+                    alert.type === 'critical' ? 'bg-red-500' :
+                    alert.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{alert.message}</p>
+                    <p className="text-sm text-gray-500">{alert.equipment}</p>
+                    <p className="text-xs text-gray-400">{alert.time}</p>
+                  </div>
+                  <Badge variant={
+                    alert.type === 'critical' ? 'destructive' :
+                    alert.type === 'warning' ? 'secondary' : 'default'
+                  }>
+                    {alert.type === 'critical' ? 'Critique' :
+                     alert.type === 'warning' ? 'Attention' : 'Info'}
+                  </Badge>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

@@ -6,6 +6,7 @@ import { EquipmentList } from './components/EquipmentList';
 import { EquipmentForm } from './components/EquipmentForm';
 import { ObsolescenceView } from './components/ObsolescenceView';
 import { UserManagement } from './components/UserManagement';
+import { Settings } from './components/Settings';
 import { LoginPage } from './components/LoginPage';
 import './App.css';
 
@@ -40,6 +41,7 @@ function App() {
               <Route path="/equipment/edit/:id" element={<EquipmentForm />} />
               <Route path="/obsolescence" element={<ObsolescenceView />} />
               <Route path="/users" element={<UserManagement />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
         </div>

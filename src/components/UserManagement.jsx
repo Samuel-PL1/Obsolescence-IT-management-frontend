@@ -37,61 +37,12 @@ export function UserManagement() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      // Simulation de données pour la démonstration
-      // En production, cet appel serait fait vers l'API Flask
-      const mockData = [
-        {
-          id: 1,
-          username: 'admin',
-          email: 'admin@company.com',
-          role: 'administrator',
-          created_at: '2023-01-15T10:00:00Z',
-          last_login: '2024-09-04T08:30:00Z',
-          status: 'active'
-        },
-        {
-          id: 2,
-          username: 'jdupont',
-          email: 'j.dupont@company.com',
-          role: 'manager',
-          created_at: '2023-03-20T14:30:00Z',
-          last_login: '2024-09-03T16:45:00Z',
-          status: 'active'
-        },
-        {
-          id: 3,
-          username: 'mmartin',
-          email: 'm.martin@company.com',
-          role: 'user',
-          created_at: '2023-06-10T09:15:00Z',
-          last_login: '2024-09-02T11:20:00Z',
-          status: 'active'
-        },
-        {
-          id: 4,
-          username: 'pbernard',
-          email: 'p.bernard@company.com',
-          role: 'user',
-          created_at: '2023-08-05T16:00:00Z',
-          last_login: '2024-08-30T14:10:00Z',
-          status: 'inactive'
-        },
-        {
-          id: 5,
-          username: 'sdurand',
-          email: 's.durand@company.com',
-          role: 'technician',
-          created_at: '2023-11-12T11:45:00Z',
-          last_login: '2024-09-04T07:55:00Z',
-          status: 'active'
-        }
-      ]
-      
-      const sortedUsers = [...mockData].sort((a, b) =>
-        a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' })
-      )
-
-      setUsers(sortedUsers)
+      const response = await fetch('/api/users')
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      setUsers(data)
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error)
     } finally {

@@ -28,6 +28,8 @@ export function EquipmentList() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [loading, setLoading] = useState(true)
   const [showImport, setShowImport] = useState(false)
+  const [importSuccess, setImportSuccess] = useState(false)
+
 
   useEffect(() => {
     fetchEquipment()
@@ -361,8 +363,9 @@ export function EquipmentList() {
         <ImportExcel 
           onClose={() => setShowImport(false)}
           onImportSuccess={() => {
-            setShowImport(false)
-            fetchEquipment()
+            setShowImport(false);
+            setImportSuccess(true);
+            fetchEquipment();
           }}
         />
       )}
